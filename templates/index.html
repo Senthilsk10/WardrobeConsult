@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Recommendation System</title>
+    <script src="https://ajax.googleapis.com/ajax/libs/angularjs/1.8.2/angular.min.js"></script>
+    <script src="https://ajax.googleapis.com/ajax/libs/angularjs/1.8.2/angular-sanitize.js"></script>
+    <link rel="stylesheet" href="static/styles.css" />
+    <script>
+      angular
+        .module("productApp", ["ngSanitize"])
+        .config([
+          "$interpolateProvider",
+          function ($interpolateProvider) {
+            $interpolateProvider.startSymbol("[[");
+            $interpolateProvider.endSymbol("]]");
+          },
+        ])
+        .controller("ProductController", [
+          "$scope",
+          "$http",
+          "$sce",
+          "$timeout",
+          function ($scope, $http, $sce, $timeout) {
+            $scope.products = [];
+            $scope.categories = [];
+            $scope.selectedCategory = "";
+            $scope.searchTerm = "";
+            $scope.page = 1;
+            $scope.limit = 10;
+            $scope.selectedProducts = [];
+            $scope.chatMessages = [];
+            $scope.newMessage = "";
+            $scope.showChat = false;
+
+            $http.get("/api/products").then(function (response) {
+              let allProducts = response.data;
+              $scope.categories = ["shirt", "shorts", "jeans", "trousers"];
+            });
+
+            $scope.loadProducts = function () {
+              let params = {
+                page: $scope.page,
+                limit: $scope.limit,
+              };
+              if ($scope.selectedCategory) {
+                params.category = $scope.selectedCategory;
+              }
+              if ($scope.searchTerm) {
+                params.search = $scope.searchTerm;
+              }
+              $http.get("/api/products", { params: params }).then(function (response) {
+                $scope.products = response.data;
+              });
+            };
+
+            $scope.changePage = function (newPage) {
+              $scope.page = newPage;
+              $scope.loadProducts();
+            };
+
+            $scope.toggleSelection = function (product) {
+              const index = $scope.selectedProducts.indexOf(product);
+              if (index === -1) {
+                $scope.selectedProducts.push(product);
+              } else {
+                $scope.selectedProducts.splice(index, 1);
+              }
+            };
+
+            $scope.compareProducts = function () {
+              $http
+                .post("/api/compare", { products: $scope.selectedProducts })
+                .then(function (response) {
+                  $scope.chatMessages.push({
+                    text: $sce.trustAsHtml(response.data.html),
+                    plainText: response.data.html,
+                    sender: "bot",
+                  });
+                  scrollToBottom();
+                });
+            };
+
+            $scope.sendMessage = function () {
+              if ($scope.newMessage.trim() === "") {
+                return;
+              }
+              $scope.chatMessages.push({
+                text: $scope.newMessage,
+                plainText: $scope.newMessage,
+                sender: "user",
+              });
+              $http
+                .post("/api/send-message", {
+                  products: $scope.selectedProducts,
+                  message: $scope.newMessage,
+                  chat: $scope.chatMessages.map((message) => ({
+                    text: message.plainText,
+                    sender: message.sender,
+                  })),
+                })
+                .then(function (response) {
+                  $scope.chatMessages.push({
+                    text: $sce.trustAsHtml(response.data.html),
+                    plainText: response.data.html,
+                    sender: "bot",
+                  });
+                  $scope.newMessage = "";
+                  scrollToBottom();
+                });
+            };
+
+            $scope.toggleChat = function () {
+              $scope.showChat = !$scope.showChat;
+            };
+
+            $scope.closeChat = function () {
+              $scope.showChat = false;
+            };
+
+            function scrollToBottom() {
+              $timeout(function () {
+                var chatContainer = document.querySelector(".chat-messages");
+                chatContainer.scrollTop = chatContainer.scrollHeight;
+              }, 0);
+            }
+
+            $scope.loadProducts();
+          },
+        ]);
+    </script>
+  </head>
+  <body ng-app="productApp" ng-controller="ProductController">
+    <div class="search-container">
+      <center><h1>ShopNow</h1></center>
+      <div class="search-bar">
+        <input
+          type="text"
+          ng-model="searchTerm"
+          placeholder="Search products"
+          class="search-input"
+        />
+        <select ng-model="selectedCategory" class="category-select">
+          <option value="">All Categories</option>
+          <option ng-repeat="category in categories">[[category]]</option>
+        </select>
+        <button ng-click="loadProducts()" class="search-button">Search</button>
+      </div>
+    </div>
+
+    <div ng-if="products.length === 0" class="no-products-message">
+      No products found.
+    </div>
+
+    <!-- Pagination Controls -->
+    <div class="pagination-controls">
+      <button
+        ng-disabled="page <= 1"
+        ng-click="changePage(page - 1)"
+        class="pagination-button"
+      >
+        Previous
+      </button>
+      <span class="pagination-info">Page [[page]]</span>
+      <button ng-click="changePage(page + 1)" class="pagination-button">
+        Next
+      </button>
+    </div>
+
+    <!-- Chat Toggle Button -->
+    <button ng-click="toggleChat()" class="chat-toggle-button">Chat</button>
+
+    <!-- Chat Box -->
+    <div class="chat-container" ng-class="{'show': showChat}">
+      <div class="chat-header">
+        <img src="static\images\logo.png" alt="logo" width="50%" height="90px">
+        <!-- Compare Button -->
+        <button ng-click="compareProducts()" class="compare-button">
+          Pick best
+        </button>
+
+        <button class="chat-close-button" ng-click="closeChat()">
+          <img
+            src="https://img.icons8.com/?size=100&id=dqz2PwJUFGeW&format=png&color=000000"
+            height="30px"
+            width="30px"
+          />
+        </button>
+      </div>
+      <hr />
+      <div class="chat-messages">
+        <div
+          ng-repeat="message in chatMessages"
+          class="chat-message"
+          ng-class="{'user': message.sender === 'user', 'bot': message.sender === 'bot'}"
+          ng-bind-html="message.text"
+        ></div>
+      </div>
+      <input
+        type="text"
+        ng-model="newMessage"
+        placeholder="Type a message"
+        class="chat-input"
+      />
+      <button ng-click="sendMessage()" class="chat-send-button">Send</button>
+    </div>
+
+    <div class="product-grid">
+      <div class="product-card" ng-repeat="product in products">
+        <label>
+          <input
+            type="checkbox"
+            ng-model="product.selected"
+            ng-change="toggleSelection(product)"
+            style="display: none;"
+          />
+          <div class="clickable-area">
+            <img
+              ng-src="[[product.pdt_img]]"
+              alt="[[product.pdt_name]]"
+              class="product-img"
+            />
+            <div class="product-details">
+              <h2 class="product-name">[[product.pdt_name]]</h2>
+              <p class="product-category">[[product.pdt_categ]]</p>
+              <p class="product-price">$[[product.price]]</p>
+            </div>
+          </div>
+        </label>
+      </div>
+    </div>
+  </body>
+</html>
