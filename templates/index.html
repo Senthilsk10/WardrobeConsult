@@ -34,7 +34,7 @@
             $scope.newMessage = "";
             $scope.showChat = false;
 
-            $http.get("/api/products").then(function (response) {
+            $http.get("https://sophos2k24.pythonanywhere.com/api/products").then(function (response) {
               let allProducts = response.data;
               $scope.categories = ["shirt", "shorts", "jeans", "trousers"];
             });
@@ -50,7 +50,7 @@
               if ($scope.searchTerm) {
                 params.search = $scope.searchTerm;
               }
-              $http.get("/api/products", { params: params }).then(function (response) {
+              $http.get("https://sophos2k24.pythonanywhere.com/api/products", { params: params }).then(function (response) {
                 $scope.products = response.data;
               });
             };
@@ -71,7 +71,7 @@
 
             $scope.compareProducts = function () {
               $http
-                .post("/api/compare", { products: $scope.selectedProducts })
+                .post("https://sophos2k24.pythonanywhere.com/api/compare", { products: $scope.selectedProducts })
                 .then(function (response) {
                   $scope.chatMessages.push({
                     text: $sce.trustAsHtml(response.data.html),
@@ -92,7 +92,7 @@
                 sender: "user",
               });
               $http
-                .post("/api/send-message", {
+                .post("https://sophos2k24.pythonanywhere.com/api/send-message", {
                   products: $scope.selectedProducts,
                   message: $scope.newMessage,
                   chat: $scope.chatMessages.map((message) => ({
